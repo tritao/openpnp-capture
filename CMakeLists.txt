@@ -28,6 +28,8 @@ set (CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH};${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 # force C++11 standard
 set(CMAKE_CXX_STANDARD 11)
 
+set(JVSDK TRUE)
+
 # load module that gets info from GIT 
 # see: http://brianmilco.blogspot.nl/2012/11/cmake-automatically-use-git-tags-as.html
 include(GetGitRevisionDescription)
@@ -57,10 +59,10 @@ endif(CMAKE_BUILD_TYPE MATCHES Release)
 include_directories(include)
 
 IF (WIN32)
-	# build with static runtime rather than DLL based so that we
-	# don't have to distribute it
-	set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MT")
-	set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MTd")
+    # build with static runtime rather than DLL based so that we
+    # don't have to distribute it
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MT")
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MTd")
 
     # set the platform identification string
     add_definitions(-D__PLATFORM__="Win ${COMPILERBITS}")
@@ -70,17 +72,31 @@ IF (WIN32)
 
     # add files for WIN32
     set (SOURCE common/libmain.cpp
+                common/context.h
                 common/context.cpp
+                common/logging.h
                 common/logging.cpp
+                common/stream.h
                 common/stream.cpp
+                win/platformcontext.h
                 win/platformcontext.cpp
-                win/platformstream.cpp)
+                win/platformdeviceinfo.h
+                win/platformstream.h
+                win/platformstream.cpp
+                win/samplegrabber.h
+                win/scopedcomptr.h)
 
     # create the library
     add_library(openpnp-capture SHARED ${SOURCE})
 
     # add windows-specific test application
     add_subdirectory(win/tests)
+
+    IF (JVSDK)
+        add_definitions("-DJVSDK")
+        include_directories(SYSTEM "${CMAKE_CURRENT_SOURCE_DIR}/win/contrib/jvsdk")
+        target_link_libraries(openpnp-capture "${CMAKE_CURRENT_SOURCE_DIR}/win/contrib/jvsdk/JVSDK.lib")
+    ENDIF()
 
 ELSEIF(APPLE)
     # set the platform identification string

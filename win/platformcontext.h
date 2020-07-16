@@ -85,6 +85,14 @@ protected:
     */
     virtual std::string wcharPtrToString(const wchar_t *str);
 
+#ifdef JVSDK
+
+    virtual bool enumerateDevicesJVSDK();
+
+    int m_jvs_num_channels;
+    bool m_jvs_channels[16];
+
+#endif
 };
 
 #endif

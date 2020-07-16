@@ -37,6 +37,10 @@
 #include "platformstream.h"
 #include "platformcontext.h"
 
+#ifdef JVSDK
+#include <JVSDK.h>
+#endif
+
 // a platform factory function needed by
 // libmain.cpp
 Context* createPlatformContext()
@@ -61,11 +65,23 @@ PlatformContext::PlatformContext() : Context()
     }
 
     enumerateDevices();
+
+#ifdef JVSDK
+    m_jvs_num_channels = JVS_InitSDK();
+    enumerateDevicesJVSDK();
+#endif
 }
 
 PlatformContext::~PlatformContext()
 {
     CoUninitialize();
+
+#ifdef JVSDK
+    for (int channel = 0; channel < m_jvs_num_channels; ++channel)
+        JVS_CloseChannel(channel);
+
+    JVS_ReleaseSDK();
+#endif
 }
 
 
@@ -173,9 +189,60 @@ bool PlatformContext::enumerateDevices()
 
         num_devices++;
     }
+
+#ifdef JVSDK
+    enumerateDevicesJVSDK();
+#endif
+
     return true;
 }
 
+bool PlatformContext::enumerateDevicesJVSDK()
+{
+    if (m_jvs_num_channels == 0)
+    {
+        LOG(LOG_WARNING, "No JVS capture cards were found.");
+        return false;
+    }
+
+    LOG(LOG_INFO, "Found JVS capture card with %d channels.\n", m_jvs_num_channels);
+
+    for (int channelId = 0; channelId < m_jvs_num_channels; channelId++)
+    {
+        deviceInfo *info = new deviceInfo();
+        info->m_name = std::string("JVS_Channel") + std::to_string(channelId);
+        info->m_uniqueID = info->m_name;
+        m_devices.push_back(info);
+        LOG(LOG_INFO, "ID %d -> %s\n", channelId, info->m_name.c_str());
+
+        m_jvs_channels[channelId] = JVS_OpenChannel(channelId);
+
+        JVS_SetVideoPixelMode(channelId, 1, 0);
+
+        DWORD width, height;
+        if (!JVS_GetBitmapSize(channelId, &width, &height))
+        {
+            LOG(LOG_WARNING, "Failed to get bitmap size for JVS capture card channel %d.",
+                channelId);
+            continue;
+        }
+
+        CapFormatInfo formatInfo;
+        formatInfo.bpp = 32;
+        formatInfo.fourcc = 'RGB ';
+        formatInfo.width = width;
+        formatInfo.height = height;
+        formatInfo.fps = 0;
+
+        std::string fourCCString = fourCCToString(formatInfo.fourcc);
+        LOG(LOG_INFO, "%d x %d  %d fps  %d bpp FOURCC=%s\n", formatInfo.width, formatInfo.height,
+            formatInfo.fps, formatInfo.bpp, fourCCString.c_str());
+
+        info->m_formats.push_back(formatInfo);
+    }
+
+    return true;
+}
 
 std::string PlatformContext::wstringToString(const std::wstring &wstr)
 {
