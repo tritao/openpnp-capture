@@ -133,17 +133,6 @@ public:
     /** Close a capture stream */
     virtual void close() override;
 
-    /** Returns true if a new frame is available for reading using 'captureFrame'. 
-        The internal new frame flag is reset by captureFrame.
-    */
-    bool hasNewFrame();
-
-    /** Retrieve the most recently captured frame and copy it in a
-        buffer pointed to by RGBbufferPtr. The maximum buffer size 
-        must be supplied in RGBbufferBytes.
-    */
-    bool captureFrame(uint8_t *RGBbufferPtr, uint32_t RGBbufferBytes);
-
     /** set the frame rate */
     virtual bool setFrameRate(uint32_t fps) override;
 
@@ -164,6 +153,24 @@ public:
     
     /** get automatic state of property (exposure, zoom etc) of camera/stream */
     virtual bool getAutoProperty(uint32_t propID, bool &enabled) override;
+
+#ifdef JVSDK
+	bool jvs_open(Context* owner, deviceInfo* device, uint32_t width, uint32_t height,
+		uint32_t fourCC, uint32_t fps);
+	void jvs_close();
+	LRESULT jvs_onSDKNotify(WPARAM wParam, LPARAM lParam);
+	void jvs_writeBitmap();
+	void jvs_requestBitmap();
+	void jvs_messagePump();
+
+	bool hasNewFrame() override;
+	bool captureFrame(uint8_t* RGBbufferPtr, uint32_t RGBbufferBytes) override;
+
+	HWND m_hwnd;
+	bool m_isJVS;
+	int m_channelId;
+	unsigned char* m_pRGB;
+#endif
 
 protected:
     /** A re-implementation of Stream::submitBuffer with BGR to RGB conversion */

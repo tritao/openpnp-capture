@@ -345,7 +345,7 @@ int main(int argc, char*argv[])
     BOOL bRet;
 
     std::vector<uint8_t> m_buffer;
-    m_buffer.resize(finfo.width*finfo.height*3);
+    m_buffer.resize(finfo.width*finfo.height*4);
 
     char c = 0;
     uint32_t frameWriteCounter=0;

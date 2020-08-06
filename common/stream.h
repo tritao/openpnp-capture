@@ -57,13 +57,13 @@ public:
     /** Returns true if a new frame is available for reading using 'captureFrame'. 
         The internal new frame flag is reset by captureFrame.
     */
-    bool hasNewFrame();
+    virtual bool hasNewFrame();
 
     /** Retrieve the most recently captured frame and copy it in a
         buffer pointed to by RGBbufferPtr. The maximum buffer size 
         must be supplied in RGBbufferBytes.
     */
-    bool captureFrame(uint8_t *RGBbufferPtr, uint32_t RGBbufferBytes);
+    virtual bool captureFrame(uint8_t *RGBbufferPtr, uint32_t RGBbufferBytes);
     
     /** Set the frame rate of this stream.
         Returns false if the camera does not support the desired

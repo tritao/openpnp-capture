@@ -68,6 +68,8 @@ PlatformContext::PlatformContext() : Context()
 
 #ifdef JVSDK
     m_jvs_num_channels = JVS_InitSDK();
+	bool result = JVS_InitPreview();
+
     enumerateDevicesJVSDK();
 #endif
 }
@@ -191,7 +193,7 @@ bool PlatformContext::enumerateDevices()
     }
 
 #ifdef JVSDK
-    enumerateDevicesJVSDK();
+    //enumerateDevicesJVSDK();
 #endif
 
     return true;
@@ -201,7 +203,7 @@ bool PlatformContext::enumerateDevicesJVSDK()
 {
     if (m_jvs_num_channels == 0)
     {
-        LOG(LOG_WARNING, "No JVS capture cards were found.");
+        LOG(LOG_WARNING, "No JVS capture cards were found.\n");
         return false;
     }
 
@@ -209,7 +211,7 @@ bool PlatformContext::enumerateDevicesJVSDK()
 
     for (int channelId = 0; channelId < m_jvs_num_channels; channelId++)
     {
-        deviceInfo *info = new deviceInfo();
+        deviceInfo *info = new platformDeviceInfo();
         info->m_name = std::string("JVS_Channel") + std::to_string(channelId);
         info->m_uniqueID = info->m_name;
         m_devices.push_back(info);
@@ -217,12 +219,14 @@ bool PlatformContext::enumerateDevicesJVSDK()
 
         m_jvs_channels[channelId] = JVS_OpenChannel(channelId);
 
-        JVS_SetVideoPixelMode(channelId, 1, 0);
+		DWORD videoFormatD1 = 1;
+		DWORD pixelModePAL = 0;
+		JVS_SetVideoPixelMode(channelId, videoFormatD1, pixelModePAL);
 
         DWORD width, height;
         if (!JVS_GetBitmapSize(channelId, &width, &height))
         {
-            LOG(LOG_WARNING, "Failed to get bitmap size for JVS capture card channel %d.",
+            LOG(LOG_WARNING, "Failed to get bitmap size for JVS capture card channel %d.\n",
                 channelId);
             continue;
         }

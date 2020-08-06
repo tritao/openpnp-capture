@@ -39,7 +39,7 @@ GOTO End
 :VS_2019
 mkdir build
 cd build
-cmake -DCMAKE_BUILD_TYPE=Release -G "Visual Studio 17 2019" ..
+cmake -DCMAKE_BUILD_TYPE=Release -G "Visual Studio 16 2019" ..
 cd ..
 GOTO End
 
