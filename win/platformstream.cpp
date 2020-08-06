@@ -555,7 +555,13 @@ bool PlatformStream::captureFrame(uint8_t* RGBbufferPtr, uint32_t RGBbufferBytes
 	bool ret = Stream::captureFrame(RGBbufferPtr, RGBbufferBytes);
 
 #ifdef JVSDK
-	jvs_requestBitmap();
+    if (m_isJVS)
+	    jvs_requestBitmap();
+#endif
+
+#ifdef KSJAPI
+    if (m_isKSJ)
+        ksj_requestBitmap();
 #endif
 
 	return ret;

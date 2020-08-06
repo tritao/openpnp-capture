@@ -98,6 +98,7 @@ PlatformContext::~PlatformContext()
     for (int channel = 0; channel < m_jvs_num_channels; ++channel)
         JVS_CloseChannel(channel);
 
+    JVS_ReleasePreview();
     JVS_ReleaseSDK();
 #endif
 
@@ -284,7 +285,7 @@ bool PlatformContext::ksj_enumerateDevices()
     for (int deviceId = 0; deviceId < m_ksj_num_devices; deviceId++)
     {
         deviceInfo *info = new platformDeviceInfo();
-        info->m_name = std::string("KSJ_") + std::to_string(deviceId);
+        info->m_name = std::string("KSJ_Device") + std::to_string(deviceId);
         info->m_uniqueID = info->m_name;
         m_devices.push_back(info);
         LOG(LOG_INFO, "ID %d -> %s\n", deviceId, info->m_name.c_str());

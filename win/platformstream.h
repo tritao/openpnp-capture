@@ -164,26 +164,26 @@ public:
 
     LRESULT jvs_onSDKNotify(WPARAM wParam, LPARAM lParam);
 
-    HWND m_hwnd;
     bool m_isJVS;
+    int m_channelId;
+    HWND m_hwnd;
 #endif
 
 #ifdef KSJAPI
     bool ksj_open(Context* owner, deviceInfo* device, uint32_t width, uint32_t height,
         uint32_t fourCC, uint32_t fps);
     void ksj_close();
-    void ksj_writeBitmap();
     void ksj_requestBitmap();
-    void ksj_messagePump();
+    void ksj_writeBitmap();
 
     bool m_isKSJ;
+    int m_deviceId;
 #endif
 
 #if defined(JVSDK) || defined(KSJAPI)
     bool hasNewFrame() override;
     bool captureFrame(uint8_t* RGBbufferPtr, uint32_t RGBbufferBytes) override;
 
-    int m_channelId;
     unsigned char* m_pRGB;
 #endif
 
