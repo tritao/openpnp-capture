@@ -155,21 +155,36 @@ public:
     virtual bool getAutoProperty(uint32_t propID, bool &enabled) override;
 
 #ifdef JVSDK
-	bool jvs_open(Context* owner, deviceInfo* device, uint32_t width, uint32_t height,
-		uint32_t fourCC, uint32_t fps);
-	void jvs_close();
-	LRESULT jvs_onSDKNotify(WPARAM wParam, LPARAM lParam);
-	void jvs_writeBitmap();
-	void jvs_requestBitmap();
-	void jvs_messagePump();
+    bool jvs_open(Context* owner, deviceInfo* device, uint32_t width, uint32_t height,
+        uint32_t fourCC, uint32_t fps);
+    void jvs_close();
+    void jvs_writeBitmap();
+    void jvs_requestBitmap();
+    void jvs_messagePump();
 
-	bool hasNewFrame() override;
-	bool captureFrame(uint8_t* RGBbufferPtr, uint32_t RGBbufferBytes) override;
+    LRESULT jvs_onSDKNotify(WPARAM wParam, LPARAM lParam);
 
-	HWND m_hwnd;
-	bool m_isJVS;
-	int m_channelId;
-	unsigned char* m_pRGB;
+    HWND m_hwnd;
+    bool m_isJVS;
+#endif
+
+#ifdef KSJAPI
+    bool ksj_open(Context* owner, deviceInfo* device, uint32_t width, uint32_t height,
+        uint32_t fourCC, uint32_t fps);
+    void ksj_close();
+    void ksj_writeBitmap();
+    void ksj_requestBitmap();
+    void ksj_messagePump();
+
+    bool m_isKSJ;
+#endif
+
+#if defined(JVSDK) || defined(KSJAPI)
+    bool hasNewFrame() override;
+    bool captureFrame(uint8_t* RGBbufferPtr, uint32_t RGBbufferBytes) override;
+
+    int m_channelId;
+    unsigned char* m_pRGB;
 #endif
 
 protected:

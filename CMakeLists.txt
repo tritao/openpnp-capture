@@ -29,6 +29,7 @@ set (CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH};${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 set(CMAKE_CXX_STANDARD 11)
 
 set(JVSDK TRUE)
+set(KSJAPI TRUE)
 
 # load module that gets info from GIT 
 # see: http://brianmilco.blogspot.nl/2012/11/cmake-automatically-use-git-tags-as.html
@@ -86,6 +87,14 @@ IF (WIN32)
                 win/samplegrabber.h
                 win/scopedcomptr.h)
 
+    IF (JVSDK)
+        list(APPEND SOURCE win/platformstream_jvs.cpp)
+    ENDIF()
+
+    IF (KSJAPI)
+        list(APPEND SOURCE win/platformstream_ksj.cpp)
+    ENDIF()
+
     # create the library
     add_library(openpnp-capture SHARED ${SOURCE})
 
@@ -96,6 +105,15 @@ IF (WIN32)
         add_definitions("-DJVSDK")
         include_directories(SYSTEM "${CMAKE_CURRENT_SOURCE_DIR}/win/contrib/jvsdk")
         target_link_libraries(openpnp-capture "${CMAKE_CURRENT_SOURCE_DIR}/win/contrib/jvsdk/JVSDK.lib")
+    ENDIF()
+
+    IF (KSJAPI)
+        add_definitions("-DKSJAPI")
+        include_directories(SYSTEM "${CMAKE_CURRENT_SOURCE_DIR}/win/contrib/ksjapi/common")
+        include_directories(SYSTEM "${CMAKE_CURRENT_SOURCE_DIR}/win/contrib/ksjapi/KSJApi.Inc")
+        target_link_libraries(openpnp-capture
+            debug "${CMAKE_CURRENT_SOURCE_DIR}/win/contrib/ksjapi/KSJApi.Lib/KSJApiu.lib"
+            optimized "${CMAKE_CURRENT_SOURCE_DIR}/win/contrib/ksjapi/KSJApi.Lib/KSJApi.lib")
     ENDIF()
 
 ELSEIF(APPLE)
