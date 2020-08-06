@@ -41,6 +41,10 @@
 #include <JVSDK.h>
 #endif
 
+#ifdef KSJAPI
+#include <KSJApi.h>
+#endif
+
 // a platform factory function needed by
 // libmain.cpp
 Context* createPlatformContext()
@@ -68,9 +72,21 @@ PlatformContext::PlatformContext() : Context()
 
 #ifdef JVSDK
     m_jvs_num_channels = JVS_InitSDK();
-	bool result = JVS_InitPreview();
+    bool jvs_result = JVS_InitPreview();
 
-    enumerateDevicesJVSDK();
+    jvsdk_enumerateDevices();
+#endif
+
+#ifdef KSJAPI
+    int ksj_result = KSJ_Init();
+    if (ksj_result != RET_SUCCESS)
+    {
+        LOG(LOG_WARNING, "KSJ_Init failed (result = %d)!\n", ksj_result);
+    }
+
+    m_ksj_num_devices = KSJ_DeviceGetCount();
+
+    ksj_enumerateDevices();
 #endif
 }
 
@@ -83,6 +99,10 @@ PlatformContext::~PlatformContext()
         JVS_CloseChannel(channel);
 
     JVS_ReleaseSDK();
+#endif
+
+#ifdef KSJAPI
+    KSJ_UnInit();
 #endif
 }
 
@@ -193,13 +213,14 @@ bool PlatformContext::enumerateDevices()
     }
 
 #ifdef JVSDK
-    //enumerateDevicesJVSDK();
+    //jvsdk_enumerateDevices();
 #endif
 
     return true;
 }
 
-bool PlatformContext::enumerateDevicesJVSDK()
+#ifdef JVSDK
+bool PlatformContext::jvsdk_enumerateDevices()
 {
     if (m_jvs_num_channels == 0)
     {
@@ -219,9 +240,9 @@ bool PlatformContext::enumerateDevicesJVSDK()
 
         m_jvs_channels[channelId] = JVS_OpenChannel(channelId);
 
-		DWORD videoFormatD1 = 1;
-		DWORD pixelModePAL = 0;
-		JVS_SetVideoPixelMode(channelId, videoFormatD1, pixelModePAL);
+        DWORD videoFormatD1 = 1;
+        DWORD pixelModePAL = 0;
+        JVS_SetVideoPixelMode(channelId, videoFormatD1, pixelModePAL);
 
         DWORD width, height;
         if (!JVS_GetBitmapSize(channelId, &width, &height))
@@ -247,6 +268,53 @@ bool PlatformContext::enumerateDevicesJVSDK()
 
     return true;
 }
+#endif
+
+#ifdef KSJAPI
+bool PlatformContext::ksj_enumerateDevices()
+{
+    if (m_ksj_num_devices == 0)
+    {
+        LOG(LOG_WARNING, "No KSJ devices were found.\n");
+        return false;
+    }
+
+    LOG(LOG_INFO, "Found %d KSJ devices.\n", m_ksj_num_devices);
+
+    for (int deviceId = 0; deviceId < m_ksj_num_devices; deviceId++)
+    {
+        deviceInfo *info = new platformDeviceInfo();
+        info->m_name = std::string("KSJ_") + std::to_string(deviceId);
+        info->m_uniqueID = info->m_name;
+        m_devices.push_back(info);
+        LOG(LOG_INFO, "ID %d -> %s\n", deviceId, info->m_name.c_str());
+
+        int width, height;
+        int result = KSJ_CaptureGetSize(deviceId, &width, &height);
+        if (result != RET_SUCCESS)
+        {
+            LOG(LOG_WARNING, "KSJ_CaptureGetSize failed for device %d (result = %d)!\n", deviceId,
+                result);
+            continue;
+        }
+
+        CapFormatInfo formatInfo;
+        formatInfo.bpp = 32;
+        formatInfo.fourcc = 'RGB ';
+        formatInfo.width = width;
+        formatInfo.height = height;
+        formatInfo.fps = 0;
+
+        std::string fourCCString = fourCCToString(formatInfo.fourcc);
+        LOG(LOG_INFO, "%d x %d  %d fps  %d bpp FOURCC=%s\n", formatInfo.width, formatInfo.height,
+            formatInfo.fps, formatInfo.bpp, fourCCString.c_str());
+
+        info->m_formats.push_back(formatInfo);
+    }
+
+    return true;
+}
+#endif
 
 std::string PlatformContext::wstringToString(const std::wstring &wstr)
 {

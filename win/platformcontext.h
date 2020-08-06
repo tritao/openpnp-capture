@@ -86,12 +86,16 @@ protected:
     virtual std::string wcharPtrToString(const wchar_t *str);
 
 #ifdef JVSDK
-
-    virtual bool enumerateDevicesJVSDK();
+    virtual bool jvsdk_enumerateDevices();
 
     int m_jvs_num_channels;
     bool m_jvs_channels[16];
+#endif
 
+#ifdef KSJAPI
+    virtual bool ksj_enumerateDevices();
+
+    int m_ksj_num_devices;
 #endif
 };
 
