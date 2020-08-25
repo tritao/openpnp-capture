@@ -32,14 +32,14 @@ GOTO End
 :VS_2017
 mkdir build
 cd build
-cmake -DCMAKE_BUILD_TYPE=Release -G "Visual Studio 15 2017" ..
+cmake -DCMAKE_BUILD_TYPE=Release -A Win32 -G "Visual Studio 15 2017" ..
 cd ..
 GOTO End
 
 :VS_2019
 mkdir build
 cd build
-cmake -DCMAKE_BUILD_TYPE=Release -G "Visual Studio 16 2019" ..
+cmake -DCMAKE_BUILD_TYPE=Release -A Win32 -G "Visual Studio 16 2019" ..
 cd ..
 GOTO End
 
