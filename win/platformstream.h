@@ -41,7 +41,6 @@
 #include "../common/stream.h"
 #include "samplegrabber.h"
 
-
 class Context;         // pre-declaration
 class PlatformStream;  // pre-declaration
 
@@ -114,6 +113,23 @@ private:
     uint32_t        m_callbackCounter;
 };
 
+#ifdef JVSDK
+enum class JVSCaptureThreadState
+{
+	Initialize,
+	Error,
+	Run,
+	Exit
+};
+
+struct JVSCaptureState
+{
+	int channelId;
+	PlatformStream* stream;
+	bool isProcessed;
+	bool isOpen;
+};
+#endif
 
 /** The stream class handles the capturing of a single device */
 class PlatformStream : public Stream
@@ -158,23 +174,45 @@ public:
     bool jvs_open(Context* owner, deviceInfo* device, uint32_t width, uint32_t height,
         uint32_t fourCC, uint32_t fps);
     void jvs_close();
+	void jvs_requestBitmap();
     void jvs_writeBitmap();
-    void jvs_requestBitmap();
-    void jvs_messagePump();
 
+	bool m_isJVS;
+	int m_channelId;
+
+	// Static data
+
+	static unsigned WINAPI jvs_captureThread(void* pParam);
     LRESULT jvs_onSDKNotify(WPARAM wParam, LPARAM lParam);
 
-    bool m_isJVS;
-    int m_channelId;
-    HWND m_hwnd;
+	static void jvs_messagePump();
+	static bool jvs_initWindow();
+
+	static HANDLE g_hCaptureThread;
+	static unsigned int g_captureThreadId;
+	static JVSCaptureThreadState g_captureThreadState;
+
+	static ATOM g_atom;
+	static HWND g_hwnd;
+	static RECT g_rect;
+	static int g_width, g_height;
+	static unsigned char* g_pRGBA;
+
+	static JVSCaptureState* g_currentCapture;
+	static JVSCaptureState g_cameraCaptureStates[8];
+
+	//static moodycamel::BlockingConcurrentQueue<JVSCaptureRequest> g_captureRequestsQueue;
+
 #endif
 
 #ifdef KSJAPI
     bool ksj_open(Context* owner, deviceInfo* device, uint32_t width, uint32_t height,
         uint32_t fourCC, uint32_t fps);
     void ksj_close();
+	void ksj_messagePump();
     void ksj_requestBitmap();
-    void ksj_writeBitmap();
+	void ksj_captureBitmap();
+	void ksj_writeBitmap();
 
     bool m_isKSJ;
     int m_deviceId;
@@ -183,8 +221,6 @@ public:
 #if defined(JVSDK) || defined(KSJAPI)
     bool hasNewFrame() override;
     bool captureFrame(uint8_t* RGBbufferPtr, uint32_t RGBbufferBytes) override;
-
-    unsigned char* m_pRGB;
 #endif
 
 protected:

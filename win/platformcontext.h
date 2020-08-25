@@ -88,8 +88,10 @@ protected:
 #ifdef JVSDK
     virtual bool jvsdk_enumerateDevices();
 
-    int m_jvs_num_channels;
-    bool m_jvs_channels[16];
+	static int g_jvs_init_count;
+    static int g_jvs_num_channels;
+    static bool g_jvs_channels[16];
+	static platformDeviceInfo g_jvs_channelsDeviceInfo[16];
 #endif
 
 #ifdef KSJAPI

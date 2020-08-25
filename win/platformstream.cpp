@@ -113,6 +113,12 @@ PlatformStream::PlatformStream() :
     m_nullRenderer(nullptr),
     m_sampleGrabber(nullptr),
     m_camControl(nullptr)
+#ifdef JVSDK
+	, m_isJVS(false)
+#endif
+#ifdef KSJAPI
+	, m_isKSJ(false)
+#endif
 {
 
 }
@@ -223,7 +229,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
 	}
 #endif
 
-#ifdef JVSDK
+#ifdef KSJAPI
     m_isKSJ = device->m_name.substr(0, 3) == "KSJ";
     if (m_isKSJ)
     {
@@ -539,10 +545,18 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
 
 bool PlatformStream::hasNewFrame()
 {
-	//LOG(LOG_ERR, "hasNewFrame\n");
+	//LOG(LOG_DEBUG, "PlatformStream::hasNewFrame\n");
 
 #ifdef JVSDK
-	jvs_messagePump();
+	if (m_isJVS)
+		jvs_messagePump();
+#endif
+
+#if 0
+#ifdef KSJAPI
+	if (m_isKSJ)
+		ksj_messagePump();
+#endif
 #endif
 
 	return Stream::hasNewFrame();
@@ -550,18 +564,18 @@ bool PlatformStream::hasNewFrame()
 
 bool PlatformStream::captureFrame(uint8_t* RGBbufferPtr, uint32_t RGBbufferBytes)
 {
-	LOG(LOG_ERR, "captureFrame\n");
+	//LOG(LOG_DEBUG, "PlatformStream::captureFrame\n");
+
+#ifdef KSJAPI
+	if (m_isKSJ)
+		ksj_captureBitmap();
+#endif
 
 	bool ret = Stream::captureFrame(RGBbufferPtr, RGBbufferBytes);
 
-#ifdef JVSDK
-    if (m_isJVS)
-	    jvs_requestBitmap();
-#endif
-
 #ifdef KSJAPI
-    if (m_isKSJ)
-        ksj_requestBitmap();
+	if (m_isKSJ)
+		m_newFrame = true;
 #endif
 
 	return ret;

@@ -1,4 +1,4 @@
-/*
+﻿/*
 
     OpenPnp-Capture: a video capture subsystem.
 
@@ -17,96 +17,191 @@
 #include <JVSDK.h>
 
 #define WM_SDK_NOTIFY (WM_USER + 0x600)
-LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+LRESULT CALLBACK jvs_WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+
+HANDLE PlatformStream::g_hCaptureThread = 0;
+unsigned int PlatformStream::g_captureThreadId = 0;
+JVSCaptureThreadState PlatformStream::g_captureThreadState = JVSCaptureThreadState::Initialize;
+JVSCaptureState* PlatformStream::g_currentCapture = 0;
+JVSCaptureState PlatformStream::g_cameraCaptureStates[];
+
+//moodycamel::BlockingConcurrentQueue<JVSCaptureRequest> PlatformStream::g_captureRequestsQueue;
+
+ATOM PlatformStream::g_atom = 0;
+HWND PlatformStream::g_hwnd = 0;
+RECT PlatformStream::g_rect;
+
+int PlatformStream::g_width = 0;
+int PlatformStream::g_height = 0;
+unsigned char* PlatformStream::g_pRGBA = 0;
 
 bool PlatformStream::jvs_open(Context* owner, deviceInfo* device, uint32_t width, uint32_t height,
     uint32_t fourCC, uint32_t fps)
 {
-    HINSTANCE hInstance = GetModuleHandle(NULL);
-    static const char* className = "DUMMY_CLASS";
+	m_width = width;
+	m_height = height;
+	m_channelId = atoi(&device->m_name.at(strlen("JVS_Channel")));
+	m_isOpen = false;
 
-    WNDCLASSEX wx = {};
-    wx.cbSize = sizeof(WNDCLASSEX);
-    wx.lpfnWndProc = WindowProc;
-    wx.hInstance = hInstance;
-    wx.lpszClassName = className;
+	if (g_hCaptureThread == 0)
+	{
+		g_hCaptureThread = (HANDLE)_beginthreadex(NULL, 0, &PlatformStream::jvs_captureThread,
+			this, 0, &g_captureThreadId);
 
-    if (!RegisterClassEx(&wx))
-    {
-        LOG(LOG_ERR, "Failed to register JVS native window class\n");
-        return false;
-    }
+		g_width = width;
+		g_height = height;
+	}
 
-    m_hwnd = CreateWindowEx(0, className, "dummy_name", 0,
-        CW_USEDEFAULT, CW_USEDEFAULT, width, height,
-        NULL, NULL, hInstance, this);
+	JVS_OpenChannel(m_channelId);
 
-    if (!m_hwnd)
-    {
-        LOG(LOG_ERR, "Failed to create JVS native window\n");
-        return false;
-    }
+	// Spin loop while the thread is initializing.
+	while (g_captureThreadState == JVSCaptureThreadState::Initialize)
+	{
+	}
 
-    m_channelId = atoi(&device->m_name.at(strlen("JVS_Channel")));
+	if (g_captureThreadState == JVSCaptureThreadState::Error)
+		return false;
 
-    RECT rect;
-    if (!GetWindowRect(m_hwnd, &rect))
-    {
-        LOG(LOG_ERR, "Failed to get JVS native window rect\n");
-        return false;
-    }
+	m_frameBuffer.resize(m_width * m_height * 3);
 
-    m_width = width;
-    m_height = height;
-    m_pRGB = NULL;
+	g_cameraCaptureStates[m_channelId].channelId = m_channelId;
+	g_cameraCaptureStates[m_channelId].stream = this;
+	g_cameraCaptureStates[m_channelId].isOpen = true;
+	m_isOpen = true;
 
-    JVS_RegisterNotify(m_hwnd, WM_SDK_NOTIFY);
-    JVS_SetVideoPreview(m_channelId, m_hwnd, &rect, /*preview=*/true);
+	//jvs_requestBitmap();
 
-    if (!m_pRGB)
-    {
-        m_pRGB = new unsigned char[m_width * m_height * 4];
-        m_frameBuffer.resize(m_width * m_height * 3);
-
-        jvs_requestBitmap();
-    }
-
-    m_isOpen = true;
     return true;
+}
+
+void PlatformStream::jvs_close()
+{
+	JVS_CloseChannel(m_channelId);
+
+	g_cameraCaptureStates[m_channelId].isOpen = false;
+	g_cameraCaptureStates[m_channelId].stream = 0;
+
+	//PostThreadMessage(g_captureThreadId, WM_QUIT, 0, 0);
+	//g_captureThreadState = JVSCaptureThreadState::Exit;
+	//WaitForSingleObject(g_hCaptureThread, INFINITE);
 }
 
 void PlatformStream::jvs_requestBitmap()
 {
-    LOG(LOG_ERR, "jvs_requestBitmap\n");
+	LOG(LOG_DEBUG, "PlatformStream::jvs_requestBitmap: %d\n", m_channelId);
 
-    bool result = JVS_GetBitmap(m_channelId, m_pRGB);
-    if (!result)
-    {
-        LOG(LOG_ERR, "Failed to request bitmap to JVS capture card channel %d\n",
-            m_channelId);
-    }
+#if 0
+	JVSCaptureRequest request = {};
+
+	JVSCaptureState& request = g_cameraCaptureStates[m_channelId];
+	request.channelId = m_channelId;
+	request.stream = this;
+	request.isProcessed = false;
+#endif
+
+	//g_captureRequestsQueue.enqueue(request);
+}
+
+bool PlatformStream::jvs_initWindow()
+{
+	HINSTANCE hInstance = GetModuleHandle(NULL);
+	static const char* className = "DUMMY_CLASS";
+
+	WNDCLASSEX wx = {};
+	wx.cbSize = sizeof(WNDCLASSEX);
+	wx.lpfnWndProc = jvs_WindowProc;
+	wx.hInstance = hInstance;
+	wx.lpszClassName = className;
+
+	g_atom = RegisterClassEx(&wx);
+
+	if (!g_atom)
+	{
+		LOG(LOG_ERR, "Failed to register JVS native window class\n");
+		return false;
+	}
+
+	g_hwnd = CreateWindowEx(0, className, "dummy_name", 0,
+		CW_USEDEFAULT, CW_USEDEFAULT, g_width, g_height,
+		NULL, NULL, hInstance, 0);
+
+	if (!g_hwnd)
+	{
+		LOG(LOG_ERR, "Failed to create JVS native window\n");
+		return false;
+	}
+
+	if (!GetWindowRect(g_hwnd, &g_rect))
+	{
+		LOG(LOG_ERR, "Failed to get JVS native window rect\n");
+		return false;
+	}
+
+	return true;
+}
+
+unsigned WINAPI PlatformStream::jvs_captureThread(void* pParam)
+{
+	if (!jvs_initWindow())
+	{
+		g_captureThreadState = JVSCaptureThreadState::Error;
+		return -1;
+	}
+
+	if (!g_pRGBA)
+		g_pRGBA = new unsigned char[g_width * g_height * 4];
+
+	g_captureThreadState = JVSCaptureThreadState::Run;
+
+	while (g_captureThreadState != JVSCaptureThreadState::Exit)
+	{
+		//JVSCaptureRequest request;
+		//g_captureRequestsQueue.wait_dequeue(request);
+
+		for (int i = 0; i < 8; i++)
+		{
+			g_currentCapture = &g_cameraCaptureStates[i];
+			if (!g_currentCapture->isOpen)
+				continue;
+
+			g_currentCapture->isProcessed = false;
+
+			JVS_RegisterNotify(g_hwnd, WM_SDK_NOTIFY);
+			JVS_SetVideoPreview(g_currentCapture->channelId, g_hwnd, &g_rect, /*preview=*/true);
+
+			bool result = JVS_GetBitmap(g_currentCapture->channelId, g_pRGBA);
+			//LOG(LOG_ERR, "JVS_GetBitmap %d\n", g_currentCapture->channelId);
+			if (!result)
+			{
+				LOG(LOG_ERR, "Failed to request bitmap to JVS capture card channel %d\n",
+					g_currentCapture->channelId);
+			}
+
+			// Wait until the current request is processed.
+			while (!g_currentCapture->isProcessed)
+				jvs_messagePump();
+		}
+	}
+
+	if (g_pRGBA)
+		delete[] g_pRGBA;
+
+	return 0;
 }
 
 void PlatformStream::jvs_messagePump()
 {
-    MSG msg;
-    while (PeekMessage(&msg, m_hwnd, 0, 0, PM_REMOVE))
+	MSG msg;
+    while (PeekMessage(&msg, g_hwnd, 0, 0, PM_REMOVE))
     {
-        LOG(LOG_ERR, "PeekMessage loop\n");
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
 }
 
-void PlatformStream::jvs_close()
-{
-    if (m_pRGB)
-        delete[] m_pRGB;
-}
-
 LRESULT PlatformStream::jvs_onSDKNotify(WPARAM wParam, LPARAM lParam)
 {
-    LOG(LOG_ERR, "jvs_onSDKNotify\n");
+    //LOG(LOG_DEBUG, "PlatformStream::jvs_onSDKNotify: %d\n", m_channelId);
 
     if (lParam == JVS_WM_BITMAP_OK)
     {
@@ -114,12 +209,12 @@ LRESULT PlatformStream::jvs_onSDKNotify(WPARAM wParam, LPARAM lParam)
         if (nChannel < 0 || nChannel > 8)
             return FALSE;
 
-        if (m_pRGB == NULL)
+        if (g_pRGBA == NULL)
             return FALSE;
 
         m_bufferMutex.lock();
 
-        const uint8_t* src = m_pRGB;
+        const uint8_t* src = g_pRGBA;
         uint8_t* dst = m_frameBuffer.data();
         for (uint32_t pixel = 0; pixel < m_width * m_height; pixel++)
         {
@@ -128,24 +223,23 @@ LRESULT PlatformStream::jvs_onSDKNotify(WPARAM wParam, LPARAM lParam)
             uint8_t b = *src++;
             *src++;
 
-            *dst++ = r;
-            *dst++ = g;
             *dst++ = b;
+            *dst++ = g;
+            *dst++ = r;
         }
 
         m_newFrame = true;
         m_frames++;
-        LOG(LOG_ERR, "jvs_onSDKNotify=> new frame\n");
 
         m_bufferMutex.unlock();
 
-        //jvs_requestBitmap();
+		g_currentCapture->isProcessed = true;
     }
 
     return TRUE;
 }
 
-LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+LRESULT CALLBACK jvs_WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     PlatformStream* pThis;
     if (uMsg == WM_CREATE)
@@ -165,7 +259,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         PostQuitMessage(0);
         return 0;
     case WM_SDK_NOTIFY:
-        pThis->jvs_onSDKNotify(wParam, lParam);
+		PlatformStream::g_currentCapture->stream->jvs_onSDKNotify(wParam, lParam);
         return 0;
     }
 
@@ -202,7 +296,7 @@ void PlatformStream::jvs_writeBitmap()
 
     fwrite(&bmHeader, sizeof(bmHeader), 1, fout);
     fwrite(&bmInfo, sizeof(bmInfo), 1, fout);
-    fwrite(m_pRGB, nWidth * nHeight * nBits, 1, fout);
+    fwrite(g_pRGBA, nWidth * nHeight * nBits, 1, fout);
 
     fclose(fout);
 }

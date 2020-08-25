@@ -111,9 +111,7 @@ IF (WIN32)
         add_definitions("-DKSJAPI")
         include_directories(SYSTEM "${CMAKE_CURRENT_SOURCE_DIR}/win/contrib/ksjapi/common")
         include_directories(SYSTEM "${CMAKE_CURRENT_SOURCE_DIR}/win/contrib/ksjapi/KSJApi.Inc")
-        target_link_libraries(openpnp-capture
-            debug "${CMAKE_CURRENT_SOURCE_DIR}/win/contrib/ksjapi/KSJApi.Lib/KSJApiu.lib"
-            optimized "${CMAKE_CURRENT_SOURCE_DIR}/win/contrib/ksjapi/KSJApi.Lib/KSJApi.lib")
+        target_link_libraries(openpnp-capture "${CMAKE_CURRENT_SOURCE_DIR}/win/contrib/ksjapi/KSJApi.Lib/KSJApi.lib")
     ENDIF()
 
 ELSEIF(APPLE)

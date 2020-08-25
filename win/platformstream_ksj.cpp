@@ -16,10 +16,44 @@
 
 #include <KSJApi.h>
 
+#if 0
+LRESULT CALLBACK ksj_WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+#endif
+
 bool PlatformStream::ksj_open(Context* owner, deviceInfo* device, uint32_t width, uint32_t height,
     uint32_t fourCC, uint32_t fps)
 {
-    m_deviceId = atoi(&device->m_name.at(strlen("KSJ_Device")));
+	m_deviceId = atoi(&device->m_name.at(strlen("KSJ_Device")));
+
+	m_width = width;
+	m_height = height;
+
+#if 0
+	HINSTANCE hInstance = GetModuleHandle(NULL);
+	static const char* className = "DUMMY_CLASS";
+
+	WNDCLASSEX wx = {};
+	wx.cbSize = sizeof(WNDCLASSEX);
+	wx.lpfnWndProc = ksj_WindowProc;
+	wx.hInstance = hInstance;
+	wx.lpszClassName = className;
+
+	if (!RegisterClassEx(&wx))
+	{
+		LOG(LOG_ERR, "Failed to register JVS native window class\n");
+		return false;
+	}
+
+	m_hwnd = CreateWindowEx(0, className, "dummy_name", 0,
+		CW_USEDEFAULT, CW_USEDEFAULT, width, height,
+		NULL, NULL, hInstance, this);
+
+	if (!m_hwnd)
+	{
+		LOG(LOG_ERR, "Failed to create JVS native window\n");
+		return false;
+	}
+	
 
     // Parameters copied from SMT app init_KJS_Camera().
     int nColStart = 324;
@@ -36,15 +70,18 @@ bool PlatformStream::ksj_open(Context* owner, deviceInfo* device, uint32_t width
             m_deviceId, result);
     }
 
-    /*
-    result = KSJ_PreviewSetFieldOfView(m_deviceId, nColStart, nRowStart, nColSize, nRowSize,
-        addressMode, addressMode);
-    if (result != RET_SUCCESS)
-    {
-        LOG(LOG_WARNING, "KSJ_PreviewSetFieldOfView failed for device %d (result = %d)!\n",
-            m_deviceId, result);
-    }
-    */
+	KSJ_DEVICETYPE deviceType;
+	int serials[128];
+	unsigned short firmwareVersion[16];
+	result = KSJ_DeviceGetInformation(m_deviceId, &deviceType, (int*)&serials, (unsigned short*)&firmwareVersion);
+
+	result = KSJ_PreviewSetFieldOfView(m_deviceId, nColStart, nRowStart, nColSize, nRowSize,
+		addressMode, addressMode);
+	if (result != RET_SUCCESS)
+	{
+		LOG(LOG_WARNING, "KSJ_PreviewSetFieldOfView failed for device %d (result = %d)!\n",
+			m_deviceId, result);
+	}
 
     // Parameters copied from SMT app init_KJS_Camera().
     KSJ_SetParam(0, KSJ_RED, 0);
@@ -53,35 +90,106 @@ bool PlatformStream::ksj_open(Context* owner, deviceInfo* device, uint32_t width
     KSJ_SetParam(0, KSJ_EXPOSURE_LINES, 500);
     KSJ_SetParam(0, KSJ_BRIGHTNESS, 60);
     KSJ_SetParam(0, KSJ_CONTRAST, 25);
+#endif
 
     m_frameBuffer.resize(m_width * m_height * 3);
-    ksj_requestBitmap();
 
+#if 0
+	result = KSJ_PreviewSetPos(m_deviceId, m_hwnd, 0, 0, width, height);
+	if (result != RET_SUCCESS)
+	{
+		LOG(LOG_WARNING, "KSJ_PreviewSetPos failed for device %d (result = %d)!\n",
+			m_deviceId, result);
+	}
+
+	result = KSJ_PreviewStartEx(m_deviceId, /*start=*/true, /*parallel=*/true);
+	if (result != RET_SUCCESS)
+	{
+		LOG(LOG_WARNING, "KSJ_PreviewStartEx failed for device %d (result = %d)!\n",
+			m_deviceId, result);
+	}
+
+	unsigned int threadID;
+	m_hCaptureThread = (HANDLE)_beginthreadex(NULL, 0, &PlatformStream::ksj_captureX,
+		this, 0, &threadID);
+#endif
+
+	m_newFrame = true;
     m_isOpen = true;
-    return true;
+
+	return true;
+}
+
+void PlatformStream::ksj_captureBitmap()
+{
+	//LOG(LOG_INFO, "ksj_captureBitmap: Capturing bitmap.\n");
+
+	m_bufferMutex.lock();
+
+	int result = KSJ_CaptureRgbData(m_deviceId, m_frameBuffer.data());
+	if (result != RET_SUCCESS)
+	{
+		LOG(LOG_WARNING, "KSJ_CaptureRgbData failed for device %d (result = %d)!\n",
+			m_deviceId, result);
+	}
+
+	m_bufferMutex.unlock();
+
+	m_newFrame = true;
+	m_frames++;
 }
 
 void PlatformStream::ksj_close()
 {
 }
 
+#if 0
+
+unsigned WINAPI PlatformStream::ksj_captureX(void* pParam)
+{
+	PlatformStream* pStream = (PlatformStream*)pParam;
+	pStream->ksj_captureBitmap();
+	return 0;
+}
+
+void PlatformStream::ksj_messagePump()
+{
+	MSG msg;
+	while (PeekMessage(&msg, m_hwnd, 0, 0, PM_REMOVE))
+	{
+		TranslateMessage(&msg);
+		DispatchMessage(&msg);
+	}
+}
+
+LRESULT CALLBACK ksj_WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+	PlatformStream* pThis;
+	if (uMsg == WM_CREATE)
+	{
+		LPCREATESTRUCT lpcs = reinterpret_cast<LPCREATESTRUCT>(lParam);
+		pThis = static_cast<PlatformStream*>(lpcs->lpCreateParams);
+		SetWindowLongPtr(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(pThis));
+	}
+	else
+	{
+		pThis = reinterpret_cast<PlatformStream*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
+	}
+
+	switch (uMsg)
+	{
+	case WM_DESTROY:
+		PostQuitMessage(0);
+		return 0;
+	}
+
+	return DefWindowProc(hwnd, uMsg, wParam, lParam);
+}
+#endif
+
 void PlatformStream::ksj_requestBitmap()
 {
-    LOG(LOG_ERR, "jvs_requestBitmap\n");
 
-    m_bufferMutex.lock();
-
-    int result = KSJ_CaptureRgbData(m_deviceId, m_frameBuffer.data());
-    if (result != RET_SUCCESS)
-    {
-        LOG(LOG_WARNING, "KSJ_CaptureRgbData failed for device %d (result = %d)!\n",
-            m_deviceId, result);
-    }
-
-    m_bufferMutex.unlock();
-
-    m_newFrame = true;
-    m_frames++;
 }
 
 void PlatformStream::ksj_writeBitmap()

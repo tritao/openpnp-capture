@@ -39,6 +39,10 @@
 
 #ifdef JVSDK
 #include <JVSDK.h>
+int PlatformContext::g_jvs_init_count = 0;
+int PlatformContext::g_jvs_num_channels = 0;
+bool PlatformContext::g_jvs_channels[] = {};
+platformDeviceInfo PlatformContext::g_jvs_channelsDeviceInfo[] = {};
 #endif
 
 #ifdef KSJAPI
@@ -71,13 +75,28 @@ PlatformContext::PlatformContext() : Context()
     enumerateDevices();
 
 #ifdef JVSDK
-    m_jvs_num_channels = JVS_InitSDK();
-    bool jvs_result = JVS_InitPreview();
+	if (!g_jvs_init_count)
+	{
+		g_jvs_num_channels = JVS_InitSDK();
+		bool jvs_result = JVS_InitPreview();
 
-    jvsdk_enumerateDevices();
+		g_jvs_init_count++;
+		jvsdk_enumerateDevices();
+	}
+
+	for (int i = 0; i < g_jvs_num_channels; i++)
+	{
+		deviceInfo* info = new platformDeviceInfo();
+		info->m_name = g_jvs_channelsDeviceInfo[i].m_name;
+		info->m_uniqueID = g_jvs_channelsDeviceInfo[i].m_uniqueID;
+		info->m_formats = g_jvs_channelsDeviceInfo[i].m_formats;
+
+		m_devices.push_back(info);
+	}
 #endif
 
 #ifdef KSJAPI
+	KSJ_UnInit();
     int ksj_result = KSJ_Init();
     if (ksj_result != RET_SUCCESS)
     {
@@ -95,11 +114,15 @@ PlatformContext::~PlatformContext()
     CoUninitialize();
 
 #ifdef JVSDK
-    for (int channel = 0; channel < m_jvs_num_channels; ++channel)
+    for (int channel = 0; channel < g_jvs_num_channels; ++channel)
         JVS_CloseChannel(channel);
 
-    JVS_ReleasePreview();
-    JVS_ReleaseSDK();
+	g_jvs_init_count--;
+	if (g_jvs_init_count == 0)
+	{
+		JVS_ReleasePreview();
+		JVS_ReleaseSDK();
+	}
 #endif
 
 #ifdef KSJAPI
@@ -223,23 +246,22 @@ bool PlatformContext::enumerateDevices()
 #ifdef JVSDK
 bool PlatformContext::jvsdk_enumerateDevices()
 {
-    if (m_jvs_num_channels == 0)
+    if (g_jvs_num_channels == 0)
     {
         LOG(LOG_WARNING, "No JVS capture cards were found.\n");
         return false;
     }
 
-    LOG(LOG_INFO, "Found JVS capture card with %d channels.\n", m_jvs_num_channels);
+    LOG(LOG_INFO, "Found JVS capture card with %d channels.\n", g_jvs_num_channels);
 
-    for (int channelId = 0; channelId < m_jvs_num_channels; channelId++)
+    for (int channelId = 0; channelId < g_jvs_num_channels; channelId++)
     {
-        deviceInfo *info = new platformDeviceInfo();
+        deviceInfo *info = &g_jvs_channelsDeviceInfo[channelId];
         info->m_name = std::string("JVS_Channel") + std::to_string(channelId);
         info->m_uniqueID = info->m_name;
-        m_devices.push_back(info);
         LOG(LOG_INFO, "ID %d -> %s\n", channelId, info->m_name.c_str());
 
-        m_jvs_channels[channelId] = JVS_OpenChannel(channelId);
+		g_jvs_channels[channelId] = JVS_OpenChannel(channelId);
 
         DWORD videoFormatD1 = 1;
         DWORD pixelModePAL = 0;
@@ -252,6 +274,9 @@ bool PlatformContext::jvsdk_enumerateDevices()
                 channelId);
             continue;
         }
+
+		JVS_CloseChannel(channelId);
+		g_jvs_channels[channelId] = false;
 
         CapFormatInfo formatInfo;
         formatInfo.bpp = 32;
@@ -288,7 +313,7 @@ bool PlatformContext::ksj_enumerateDevices()
         info->m_name = std::string("KSJ_Device") + std::to_string(deviceId);
         info->m_uniqueID = info->m_name;
         m_devices.push_back(info);
-        LOG(LOG_INFO, "ID %d -> %s\n", deviceId, info->m_name.c_str());
+        LOG(LOG_INFO, "ID %d -> %s\n", m_ksj_num_devices + deviceId, info->m_name.c_str());
 
         int width, height;
         int result = KSJ_CaptureGetSize(deviceId, &width, &height);
