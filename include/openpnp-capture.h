@@ -86,6 +86,8 @@ typedef uint32_t CapFormatID;   ///< format identifier 0 .. numFormats
 #define CAPPROPID_POWERLINEFREQ 13
 #define CAPPROPID_LAST          14
 
+#define CAPPROPID_PRIORITY 15
+
 typedef uint32_t CapPropertyID; ///< property ID (exposure, zoom, focus etc.)
 
 struct CapFormatInfo

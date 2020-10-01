@@ -82,6 +82,7 @@ bool PlatformStream::ksj_open(Context* owner, deviceInfo* device, uint32_t width
 		LOG(LOG_WARNING, "KSJ_PreviewSetFieldOfView failed for device %d (result = %d)!\n",
 			m_deviceId, result);
 	}
+#endif
 
     // Parameters copied from SMT app init_KJS_Camera().
     KSJ_SetParam(0, KSJ_RED, 0);
@@ -90,7 +91,8 @@ bool PlatformStream::ksj_open(Context* owner, deviceInfo* device, uint32_t width
     KSJ_SetParam(0, KSJ_EXPOSURE_LINES, 500);
     KSJ_SetParam(0, KSJ_BRIGHTNESS, 60);
     KSJ_SetParam(0, KSJ_CONTRAST, 25);
-#endif
+
+	KSJ_WhiteBalanceSet(0, KSJ_SWB_AUTO_CONITNUOUS);
 
     m_frameBuffer.resize(m_width * m_height * 3);
 
@@ -141,6 +143,177 @@ void PlatformStream::ksj_captureBitmap()
 
 void PlatformStream::ksj_close()
 {
+}
+
+#define KSJ_WHITEBALANCE 100
+
+static bool ConvertToKSJParam(CapPropertyID propID, KSJ_PARAM& param)
+{
+	switch (propID)
+	{
+		case CAPPROPID_EXPOSURE:
+		{
+			param = KSJ_EXPOSURE;
+			return true;
+		}
+		case CAPPROPID_BRIGHTNESS:
+		{
+			param = KSJ_BRIGHTNESS;
+			return true;
+		}
+		case CAPPROPID_CONTRAST:
+		{
+			param = KSJ_CONTRAST;
+			return true;
+		}
+		case CAPPROPID_SATURATION:
+		{
+			param = KSJ_SATURATION;
+			return true;
+		}
+		case CAPPROPID_GAMMA:
+		{
+			param = KSJ_GAMMA;
+			return true;
+		}
+		case CAPPROPID_WHITEBALANCE:
+		{
+			param = (KSJ_PARAM)KSJ_WHITEBALANCE;
+			return true;
+		}
+		case CAPPROPID_FOCUS:
+		{
+			param = (KSJ_PARAM)KSJ_RED;
+			return true;
+		}
+		case CAPPROPID_GAIN:
+		{
+			param = (KSJ_PARAM)KSJ_GREEN;
+			return true;
+		}
+		case CAPPROPID_ZOOM:
+		{
+			param = (KSJ_PARAM)KSJ_BLUE;
+			return true;
+		}
+		case CAPPROPID_HUE:
+		case CAPPROPID_SHARPNESS:
+		case CAPPROPID_BACKLIGHTCOMP:
+		case CAPPROPID_POWERLINEFREQ:
+		default:
+		{
+			return false;
+		}
+	}
+}
+
+bool PlatformStream::ksj_getAutoProperty(uint32_t propID, bool& enabled)
+{
+	KSJ_PARAM param;
+	if (!ConvertToKSJParam(propID, param))
+	{
+		enabled = false;
+		return false;
+	}
+
+	if (param == KSJ_WHITEBALANCE)
+	{
+		KSJ_WB_MODE mode;
+		int result = KSJ_WhiteBalanceGet(m_deviceId, &mode);
+		if (result != RET_SUCCESS)
+			return false;
+
+		enabled = mode != KSJ_WB_DISABLE;
+		return true;
+	}
+
+	enabled = true;
+	return true;
+}
+
+bool PlatformStream::ksj_setAutoProperty(uint32_t propID, bool enabled)
+{
+	KSJ_PARAM param;
+	if (!ConvertToKSJParam(propID, param))
+	{
+		enabled = false;
+		return false;
+	}
+
+	if (param == KSJ_WHITEBALANCE)
+	{
+		KSJ_WB_MODE mode = enabled ? KSJ_SWB_AUTO_CONITNUOUS : KSJ_WB_DISABLE;
+		int result = KSJ_WhiteBalanceSet(m_deviceId, mode);
+		return result == RET_SUCCESS;
+	}
+
+	return true;
+}
+
+bool PlatformStream::ksj_getProperty(uint32_t propID, int32_t& outValue)
+{
+	KSJ_PARAM param;
+	if (!ConvertToKSJParam(propID, param))
+		return false;
+
+	if (param == KSJ_WHITEBALANCE)
+	{
+		int nPhi;
+		int result = KSJ_WhiteBalanceAutoGet(m_deviceId, &nPhi);
+
+		outValue = nPhi;
+		return result == RET_SUCCESS;
+
+	}
+
+	int result = KSJ_GetParam(m_deviceId, param, &outValue);
+	return result == RET_SUCCESS;
+}
+
+bool PlatformStream::ksj_setProperty(uint32_t propID, int32_t value)
+{
+	KSJ_PARAM param;
+	if (!ConvertToKSJParam(propID, param))
+		return false;
+
+	if (param == KSJ_WHITEBALANCE)
+	{
+		int result = KSJ_WhiteBalanceAutoSet(m_deviceId, value);
+		return result == RET_SUCCESS;
+	}
+
+	int result = KSJ_SetParam(m_deviceId, param, value);
+	return result == RET_SUCCESS;
+}
+
+bool PlatformStream::ksj_getPropertyLimits(CapPropertyID propID, int32_t* emin,
+	int32_t* emax, int32_t* dValue)
+{
+	KSJ_PARAM param;
+	if (!ConvertToKSJParam(propID, param))
+		return false;
+
+	if (param == KSJ_WHITEBALANCE)
+	{
+		return false;
+	}
+
+	int min, max;
+	int result = KSJ_GetParamRange(m_deviceId, param, &min, &max);
+	if (result != RET_SUCCESS)
+		return false;
+
+	*emin = min;
+	*emax = max;
+
+	int value;
+	result = KSJ_GetParam(m_deviceId, param, &value);
+	if (result != RET_SUCCESS)
+		return false;
+
+	*dValue = value;
+
+	return true;
 }
 
 #if 0

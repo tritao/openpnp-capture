@@ -675,6 +675,13 @@ void PlatformStream::dumpCameraProperties()
 /** get the limits and default value of a camera/stream property (exposure, zoom etc) */
 bool PlatformStream::getPropertyLimits(CapPropertyID propID, int32_t *emin, int32_t *emax, int32_t *dValue)
 {
+#ifdef KSJAPI
+	if (m_isKSJ)
+	{
+		return ksj_getPropertyLimits(propID, emin, emax, dValue);
+	}
+#endif
+
     if ((m_camControl == nullptr) || (emin == nullptr) || (emax == nullptr))
     {
         return false;
@@ -721,11 +728,28 @@ bool PlatformStream::getPropertyLimits(CapPropertyID propID, int32_t *emin, int3
 /** set property (exposure, zoom etc) of camera/stream */
 bool PlatformStream::setProperty(uint32_t propID, int32_t value)
 {
-    if (m_camControl == nullptr)
+#if defined(JVSDK)
+	if (m_isJVS)
+	{
+		if (propID == CAPPROPID_ZOOM)
+		{
+			g_cameraCaptureStates[m_channelId].priority = value;
+			return true;
+		}
+	}
+#endif
+
+#ifdef KSJAPI
+	if (m_isKSJ)
+	{
+		return ksj_setProperty(propID, value);
+	}
+#endif
+
+	if (m_camControl == nullptr)
     {
         return false;
     }
-
 
     if (propID < CAPPROPID_LAST)
     {
@@ -778,7 +802,14 @@ bool PlatformStream::setProperty(uint32_t propID, int32_t value)
 /** set automatic state of property (exposure, zoom etc) of camera/stream */
 bool PlatformStream::setAutoProperty(uint32_t propID, bool enabled)
 {
-    if (m_camControl == 0)
+#if defined(KSJAPI)
+	if (m_isKSJ)
+	{
+		return ksj_setAutoProperty(propID, enabled);
+	}
+#endif
+	
+	if (m_camControl == 0)
     {
         return false;
     }
@@ -884,8 +915,26 @@ bool PlatformStream::getDSProperty(uint32_t propID, long &value, long &flags)
 }
 
 /** get property (exposure, zoom etc) of camera/stream */
-bool PlatformStream::getProperty(uint32_t propID, int32_t &outValue)
+bool PlatformStream::getProperty(uint32_t propID, int32_t& outValue)
 {
+#if defined(JVSDK)
+	if (m_isJVS)
+	{
+		if (propID == CAPPROPID_PRIORITY)
+		{
+			outValue = g_cameraCaptureStates[m_channelId].priority;
+			return true;
+		}
+	}
+#endif
+
+#ifdef KSJAPI
+	if (m_isKSJ)
+	{
+		return ksj_getProperty(propID, outValue);
+	}
+#endif
+
     // in keeping with the documentation, we assume long here.. 
     // the DS documentation does not specify the actual bit-width
     // for the vars, but we use 32-bit ints in the capture lib
@@ -903,6 +952,13 @@ bool PlatformStream::getProperty(uint32_t propID, int32_t &outValue)
 /** get automatic state of property (exposure, zoom etc) of camera/stream */
 bool PlatformStream::getAutoProperty(uint32_t propID, bool &enabled)
 {
+#ifdef KSJAPI
+	if (m_isKSJ)
+	{
+		return ksj_getAutoProperty(propID, enabled);
+	}
+#endif
+
     // Here, we assume that 
     // CameraControl_Flags_Auto == VideoProcAmp_Flags_Auto
     // and
