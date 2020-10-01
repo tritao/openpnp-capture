@@ -126,6 +126,7 @@ struct JVSCaptureState
 {
 	int channelId;
 	PlatformStream* stream;
+	int priority;
 	bool isProcessed;
 	bool isOpen;
 };
@@ -183,6 +184,8 @@ public:
 	// Static data
 
 	static unsigned WINAPI jvs_captureThread(void* pParam);
+	static void jvs_captureChannel(int channelId);
+
     LRESULT jvs_onSDKNotify(WPARAM wParam, LPARAM lParam);
 
 	static void jvs_messagePump();
@@ -213,6 +216,14 @@ public:
     void ksj_requestBitmap();
 	void ksj_captureBitmap();
 	void ksj_writeBitmap();
+	
+	bool ksj_getAutoProperty(uint32_t propID, bool& enabled);
+	bool ksj_setAutoProperty(uint32_t propID, bool enabled);
+
+	bool ksj_getProperty(uint32_t propID, int32_t& outValue);
+	bool ksj_setProperty(uint32_t propID, int32_t value);
+
+	bool ksj_getPropertyLimits(uint32_t propID, int32_t* emin, int32_t* emax, int32_t* dValue);
 
     bool m_isKSJ;
     int m_deviceId;

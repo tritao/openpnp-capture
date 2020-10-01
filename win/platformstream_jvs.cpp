@@ -66,6 +66,7 @@ bool PlatformStream::jvs_open(Context* owner, deviceInfo* device, uint32_t width
 
 	g_cameraCaptureStates[m_channelId].channelId = m_channelId;
 	g_cameraCaptureStates[m_channelId].stream = this;
+	g_cameraCaptureStates[m_channelId].priority = 0;
 	g_cameraCaptureStates[m_channelId].isOpen = true;
 	m_isOpen = true;
 
@@ -80,6 +81,7 @@ void PlatformStream::jvs_close()
 
 	g_cameraCaptureStates[m_channelId].isOpen = false;
 	g_cameraCaptureStates[m_channelId].stream = 0;
+	g_cameraCaptureStates[m_channelId].priority = 0;
 
 	//PostThreadMessage(g_captureThreadId, WM_QUIT, 0, 0);
 	//g_captureThreadState = JVSCaptureThreadState::Exit;
@@ -155,31 +157,26 @@ unsigned WINAPI PlatformStream::jvs_captureThread(void* pParam)
 
 	while (g_captureThreadState != JVSCaptureThreadState::Exit)
 	{
-		//JVSCaptureRequest request;
-		//g_captureRequestsQueue.wait_dequeue(request);
+		// If there are streams with special priority, then process them
+		// only to minimize latency.
+
+		bool hasPriorityChannels = false;
+		for (int i = 0; i < 8; i++)
+		{
+			JVSCaptureState* state = &g_cameraCaptureStates[i];
+			hasPriorityChannels &= state->priority != 0;
+		}
 
 		for (int i = 0; i < 8; i++)
 		{
-			g_currentCapture = &g_cameraCaptureStates[i];
-			if (!g_currentCapture->isOpen)
+			JVSCaptureState* state = &g_cameraCaptureStates[i];
+			if (!state->isOpen)
 				continue;
 
-			g_currentCapture->isProcessed = false;
+			if (hasPriorityChannels && state->priority == 0)
+				continue;
 
-			JVS_RegisterNotify(g_hwnd, WM_SDK_NOTIFY);
-			JVS_SetVideoPreview(g_currentCapture->channelId, g_hwnd, &g_rect, /*preview=*/true);
-
-			bool result = JVS_GetBitmap(g_currentCapture->channelId, g_pRGBA);
-			//LOG(LOG_ERR, "JVS_GetBitmap %d\n", g_currentCapture->channelId);
-			if (!result)
-			{
-				LOG(LOG_ERR, "Failed to request bitmap to JVS capture card channel %d\n",
-					g_currentCapture->channelId);
-			}
-
-			// Wait until the current request is processed.
-			while (!g_currentCapture->isProcessed)
-				jvs_messagePump();
+			jvs_captureChannel(i);
 		}
 	}
 
@@ -187,6 +184,27 @@ unsigned WINAPI PlatformStream::jvs_captureThread(void* pParam)
 		delete[] g_pRGBA;
 
 	return 0;
+}
+
+void PlatformStream::jvs_captureChannel(int channelId)
+{
+	g_currentCapture = &g_cameraCaptureStates[channelId];
+	g_currentCapture->isProcessed = false;
+
+	JVS_RegisterNotify(g_hwnd, WM_SDK_NOTIFY);
+	JVS_SetVideoPreview(g_currentCapture->channelId, g_hwnd, &g_rect, /*preview=*/true);
+
+	bool result = JVS_GetBitmap(g_currentCapture->channelId, g_pRGBA);
+	//LOG(LOG_ERR, "JVS_GetBitmap %d\n", g_currentCapture->channelId);
+	if (!result)
+	{
+		LOG(LOG_ERR, "Failed to request bitmap to JVS capture card channel %d\n",
+			g_currentCapture->channelId);
+	}
+
+	// Wait until the current request is processed.
+	while (!g_currentCapture->isProcessed)
+		jvs_messagePump();
 }
 
 void PlatformStream::jvs_messagePump()

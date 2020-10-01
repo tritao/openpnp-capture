@@ -135,6 +135,18 @@ void PlatformStream::ksj_captureBitmap()
 			m_deviceId, result);
 	}
 
+	uint8_t* src = m_frameBuffer.data();
+	for (uint32_t pixel = 0; pixel < m_width * m_height; pixel++)
+	{
+		uint8_t r = (*(src + 0))++;
+		uint8_t g = (*(src + 1))++;
+		uint8_t b = (*(src + 2))++;
+
+		*src++ = b;
+		*src++ = g;
+		*src++ = r;
+	}
+
 	m_bufferMutex.unlock();
 
 	m_newFrame = true;
