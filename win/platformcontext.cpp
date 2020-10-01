@@ -100,7 +100,7 @@ PlatformContext::PlatformContext() : Context()
     int ksj_result = KSJ_Init();
     if (ksj_result != RET_SUCCESS)
     {
-        LOG(LOG_WARNING, "KSJ_Init failed (result = %d)!\n", ksj_result);
+        LOG(LOG_ERR, "KSJ_Init failed (result = %d)!\n", ksj_result);
     }
 
     m_ksj_num_devices = KSJ_DeviceGetCount();
